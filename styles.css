@@ -481,3 +481,134 @@ footer {
   #main-title { font-size: 2.5rem; }
 }
 
+
+/* ======================
+   OTIMIZAÇÃO MOBILE (<600px)
+   ====================== */
+@media (max-width: 600px) {
+  /* Body */
+  body {
+    background-attachment: scroll; /* remove fixed para performance */
+  }
+
+  /* Header */
+  header {
+    padding: 1.5rem 1rem 1rem;
+  }
+  .header-container {
+    padding: 0;
+  }
+  .controls {
+    position: static;
+    transform: none;
+    margin-top: 1rem;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  #main-title {
+    font-size: 1.5rem;
+    text-align: center;
+  }
+
+  /* Seletores e busca em coluna */
+  .language-selector,
+  .community-selector,
+  .search-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  .language-selector select,
+  .community-selector select,
+  #search-input,
+  #search-btn {
+    width: 100%;
+  }
+
+  /* Grid de cards: 1 coluna */
+  .cards-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    padding: 1.5rem 0.5rem;
+  }
+
+  /* Card ajustes */
+  .card {
+    border-radius: 16px;
+    margin-inline: 0.5rem;
+  }
+  .card .info {
+    padding: 1rem;
+  }
+  .card h2 {
+    font-size: 1.1rem;
+  }
+  .meta,
+  .stats span {
+    font-size: 0.8rem;
+  }
+  .blurb {
+    font-size: 0.85rem;
+    margin: 0.75rem 0;
+    padding: 0.75rem;
+  }
+  .links {
+    padding: 0.75rem;
+  }
+  .topic-link {
+    font-size: 0.85rem;
+    padding: 0.5rem 1rem;
+  }
+
+  /* Load more */
+  .load-more-container {
+    padding: 1.5rem 0.5rem;
+  }
+  .load-more-btn {
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 0.95rem;
+  }
+
+  /* Footer */
+  footer {
+    padding: 1.5rem 1rem;
+    font-size: 0.85rem;
+  }
+
+  /* Toast */
+  .toast {
+    bottom: 1rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+  }
+  
+  /* Barra de controles passa a poder rolar na horizontal */
+  .controls {
+    position: static;
+    transform: none;
+    margin-top: 1rem;
+    display: flex;
+    flex-wrap: nowrap;          /* sem quebra de linha */
+    overflow-x: auto;           /* scroll horizontal */
+    -webkit-overflow-scrolling: touch; /* inércia no iOS */
+    gap: 0.75rem;
+    padding-bottom: 0.5rem;     /* espaço para o scroll */
+  }
+
+  /* Cada controle (select e botões) ocupa largura mínima */
+  .controls > * {
+    flex: 0 0 auto;             /* não expande nem encolhe */
+    min-width: 120px;           /* ajuste conforme necessidades */
+  }
+
+  /* Remove possível scrollbar espessa no container pai */
+  .header-container {
+    overflow-x: hidden;
+  }
+}
+
+

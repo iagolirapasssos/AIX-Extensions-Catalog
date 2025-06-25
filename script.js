@@ -1,38 +1,23 @@
 // script.js
 
 (() => {
+  /**
+   * Configurações principais e constantes
+   */
+  const TAG_REGEX = /\[\s*(?:paid|PAID|free|FREE|f\/os|F\/OS|wip|WIP|Freemium|FREEMIUM)\s*\]/;
+  const RATE_LIMIT_DELAY = 200;
+
   const communities = [
-    {
-      name: "Kodular",
-      base: "https://community.kodular.io",
-      catPath: "/c/extensions/5.json",
-      searchPath: "/search.json?q="
-    },
-    {
-      name: "MIT App Inventor",
-      base: "https://community.appinventor.mit.edu",
-      catPath: "/c/extensions/17.json",
-      searchPath: "/search.json?q="
-    },
-    {
-      name: "Niotron",
-      base: "https://community.niotron.com",
-      catPath: "/c/extension/10.json",
-      searchPath: "/search.json?q="
-    },
-    {
-      name: "Android Builder",
-      base: "https://community.androidbuilder.in",
-      catPath: "/c/extensions/9.json",
-      searchPath: "/search.json?q="
-    }
+    { name: "Kodular", base: "https://community.kodular.io", catPath: "/c/extensions/5.json", searchPath: "/search.json?q=", spSuffix: "%20%23extensions" },
+    { name: "MIT App Inventor", base: "https://community.appinventor.mit.edu", catPath: "/c/extensions/17.json", searchPath: "/search.json?q=", spSuffix: "%20category%3Aextensions" },
+    { name: "Niotron", base: "https://community.niotron.com", catPath: "/c/extension/10.json", searchPath: "/search.json?q=", spSuffix: "%20%23extension" },
+    { name: "Android Builder", base: "https://community.androidbuilder.in", catPath: "/c/extensions/9.json", searchPath: "/search.json?q=", spSuffix: "%20%23extensions" }
   ];
 
-  // Quantidade de itens por carregamento
   const INITIAL_LOAD_COUNT = 10;
-  const LOAD_MORE_COUNT = 10;
+  const LOAD_MORE_COUNT    = 10;
 
-  // DOM
+  // Elementos do DOM
   const container       = document.getElementById("cards-container");
   const updateTimeEl    = document.getElementById("update-time");
   const loadMoreBtn     = document.getElementById("load-more-btn");
@@ -43,312 +28,305 @@
   const communitySelect = document.getElementById("community-select");
   const toastEl         = document.getElementById("toast");
 
-  // Estado
-  let allExtensions      = [];
+  // Estado interno
+  let allExtensions       = [];
   let displayedExtensions = [];
-  let isLoading          = false;
-  let currentSearchTerm  = "";
-  let currentLanguage    = "en";
-  let currentOffset      = 0;
+  let isLoading           = false;
+  let currentSearchTerm   = "";
+  let currentLanguage     = "en";
+  let currentOffset       = 0;
   let selectedCommunities = communities.map(c => c.name);
 
   // Traduções
   const translations = {
     en: {
-      title:           "Extensions Catalog",
-      searchPlaceholder:"Search extensions…",
-      searchButton:    "Search",
-      loadMore:        "Load More",
-      updated:         "By BosonsHiggs Team (Aril Ogai)",
-      loading:         "Loading extensions…",
-      noResults:       "No extensions found.",
-      error:           "Error loading",
-      topic:           "View Topic",
-      community:       "Community",
-      posts:           "Posts",
-      replies:         "Replies"
+      title:             "Extensions Catalog",
+      searchPlaceholder: "Search extensions…",
+      searchButton:      "Search",
+      loadMore:          "Load More",
+      updated:           "By BosonsHiggs Team (Aril Ogai)",
+      loading:           "Loading extensions…",
+      noResultsToast:    "No extensions found.",
+      searching:         "Searching extensions…",
+      pleaseWait:        "Please wait a few seconds while loading extensions...",
+      topic:             "View Topic",
+      community:         "Community",
+      posts:             "Posts",
+      replies:           "Replies"
     },
     pt: {
-      title:           "Catálogo de Extensões",
-      searchPlaceholder:"Pesquisar extensões…",
-      searchButton:    "Buscar",
-      loadMore:        "Carregar Mais",
-      updated:         "By BosonsHiggs Team (Aril Ogai)",
-      loading:         "Carregando extensões…",
-      noResults:       "Nenhuma extensão encontrada.",
-      error:           "Erro ao carregar",
-      topic:           "Ver Tópico",
-      community:       "Comunidade",
-      posts:           "Postagens",
-      replies:         "Respostas"
+      title:             "Catálogo de Extensões",
+      searchPlaceholder: "Pesquisar extensões…",
+      searchButton:      "Buscar",
+      loadMore:          "Carregar Mais",
+      updated:           "By BosonsHiggs Team (Aril Ogai)",
+      loading:           "Carregando extensões…",
+      noResultsToast:    "Nenhuma extensão encontrada.",
+      searching:         "Buscando extensões…",
+      pleaseWait:        "Aguarde alguns segundos enquanto carregamos as extensões...",
+      topic:             "Ver Tópico",
+      community:         "Comunidade",
+      posts:             "Postagens",
+      replies:           "Respostas"
     },
     es: {
-      title:           "Catálogo de Extensiones",
-      searchPlaceholder:"Buscar extensiones…",
-      searchButton:    "Buscar",
-      loadMore:        "Cargar Más",
-      updated:         "By BosonsHiggs Team (Aril Ogai)",
-      loading:         "Cargando extensiones…",
-      noResults:       "No se encontraron extensiones.",
-      error:           "Error al cargar",
-      topic:           "Ver Tema",
-      community:       "Comunidad",
-      posts:           "Publicaciones",
-      replies:         "Respuestas"
+      title:             "Catálogo de Extensiones",
+      searchPlaceholder: "Buscar extensiones…",
+      searchButton:      "Buscar",
+      loadMore:          "Cargar Más",
+      updated:           "By BosonsHiggs Team (Aril Ogai)",
+      loading:           "Cargando extensiones…",
+      noResultsToast:    "No se encontraron extensiones.",
+      searching:         "Buscando extensiones…",
+      pleaseWait:        "Por favor, espera unos segundos mientras cargamos extensiones...",
+      topic:             "Ver Tema",
+      community:         "Comunidad",
+      posts:             "Publicaciones",
+      replies:           "Respuestas"
     }
   };
 
-  // Exibe um toast rápido
+  // Cache em sessionStorage
+  function saveCache() {
+    sessionStorage.setItem('extensionsCache', JSON.stringify(allExtensions));
+  }
+  function loadCache() {
+    try { return JSON.parse(sessionStorage.getItem('extensionsCache')); } catch { return null; }
+  }
+  function clearCache() { sessionStorage.removeItem('extensionsCache'); }
+
+  // Rate limiter
+  function rateLimitedFetch(src, term = "", offset = 0, idx = 0) {
+    return new Promise(resolve => {
+      setTimeout(() => resolve(fetchCommunityExtensions(src, term, offset)), idx * RATE_LIMIT_DELAY);
+    });
+  }
+
+  // Toast
   function showToast(msg) {
     toastEl.textContent = msg;
-    toastEl.classList.add("show");
-    setTimeout(() => toastEl.classList.remove("show"), 3000);
+    toastEl.classList.add('show');
+    setTimeout(() => toastEl.classList.remove('show'), 3000);
   }
 
   // Comunidades ativas
   function getActiveCommunities() {
-    if (selectedCommunities.includes("all")) {
-      return communities;
-    }
-    return communities.filter(c => selectedCommunities.includes(c.name));
+    return selectedCommunities.includes('all')
+      ? communities
+      : communities.filter(c => selectedCommunities.includes(c.name));
   }
 
-  // Inicialização
-  function init() {
-    loadLanguage();
-    setupEventListeners();
-    loadInitialExtensions();
-  }
-
-  function setupEventListeners() {
-    loadMoreBtn.addEventListener("click", loadMoreExtensions);
-    searchBtn.addEventListener("click", performSearch);
-    searchInput.addEventListener("keypress", e => {
-      if (e.key === "Enter") performSearch();
+  // Renderiza cards
+  function appendExtensions(list) {
+    list.forEach(ext => {
+      const blurbHTML = ext.blurb
+        ? '<p class="blurb">' + ext.blurb.slice(0,150) + (ext.blurb.length > 150 ? '…' : '') + '</p>'
+        : '';
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML =
+        '<div class="info">' +
+          '<h2>' + ext.title + '</h2>' +
+          '<div class="meta">' +
+            '<span class="community">' + translations[currentLanguage].community + ': ' + ext.community + '</span>' +
+            '<div class="stats">' +
+              '📅 ' + new Date(ext.createdAt).toLocaleDateString(currentLanguage) + ' ' +
+              '💬 ' + ext.postsCount + ' ' + translations[currentLanguage].posts + ' ' +
+              '↩️ ' + ext.replyCount + ' ' + translations[currentLanguage].replies +
+            '</div>' +
+            blurbHTML +
+          '</div>' +
+        '</div>' +
+        '<div class="links">' +
+          '<a href="' + ext.topicUrl + '" target="_blank" class="topic-link">' + translations[currentLanguage].topic + '</a>' +
+        '</div>';
+      container.appendChild(card);
     });
-    languageSelect.addEventListener("change", changeLanguage);
-    communitySelect.addEventListener("change", changeCommunities);
   }
 
-  // Carrega idioma salvo
+  // Carrega idioma
   function loadLanguage() {
-    const saved = localStorage.getItem("preferredLanguage") || "en";
-    languageSelect.value = saved;
+    const saved = localStorage.getItem('preferredLanguage') || 'en';
     currentLanguage = saved;
+    languageSelect.value = saved;
     updateUI();
   }
-
-  function changeLanguage() {
-    currentLanguage = languageSelect.value;
-    localStorage.setItem("preferredLanguage", currentLanguage);
-    updateUI();
-    displayExtensions();
-  }
-
-  function changeCommunities() {
-    const val = communitySelect.value;
-    selectedCommunities = val === "all"
-      ? communities.map(c => c.name)
-      : [val];
-    currentOffset = 0;
-    loadInitialExtensions();
-  }
-
   function updateUI() {
     const t = translations[currentLanguage];
-    document.getElementById("main-title").textContent = t.title;
+    document.getElementById('main-title').textContent = t.title;
     searchInput.placeholder = t.searchPlaceholder;
-    searchBtn.textContent     = t.searchButton;
-    loadMoreBtn.textContent   = t.loadMore;
-    updateTimeEl.textContent  = `${t.updated} `;
+    searchBtn.textContent = t.searchButton;
+    loadMoreBtn.textContent = t.loadMore;
+    updateTimeEl.textContent = t.updated;
+  }
+  function changeLanguage() {
+    localStorage.setItem('preferredLanguage', languageSelect.value);
+    loadLanguage();
+  }
+  function changeCommunities() {
+    clearCache();
+    selectedCommunities = communitySelect.value === 'all'
+      ? communities.map(c => c.name)
+      : [communitySelect.value];
+    currentOffset = 0;
+    container.innerHTML = '';
+    loadInitialExtensions();
   }
 
-  // Processa resposta de search
-  async function processSearchResults(data, communityName) {
-    if (!data?.topics) return [];
-    const topicMap = {};
-    data.topics.forEach(t => topicMap[t.id] = t);
-
-    return (data.posts||[]).map(post => {
-      const topic = topicMap[post.topic_id];
-      return topic && {
-        id:               topic.id,
-        title:            topic.title,
-        community:        communityName,
-        topicUrl:         `${data.url || communities.find(c=>c.name===communityName)?.base}/t/${topic.slug}/${topic.id}`,
-        postsCount:       topic.posts_count,
-        replyCount:       topic.reply_count,
-        createdAt:        topic.created_at,
-        likeCount:        post.like_count,
-        blurb:            post.blurb,
-        hasAcceptedAnswer: topic.has_accepted_answer
-      };
-    }).filter(x=>x);
-  }
-
-  // Busca dados de uma comunidade (com proxy CORS)
-  async function fetchCommunityExtensions(src, searchTerm="", offset=0) {
-    const isSearch = Boolean(searchTerm);
-    let apiUrl = isSearch
-      ? `${src.base}${src.searchPath}${encodeURIComponent(searchTerm)}&offset=${offset}`
-      : `${src.base}${src.catPath}?page=${Math.floor(offset/30)+1}`;
-
-    // Usa AllOrigins para evitar bloqueio CORS
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`;
-
+  // Busca dados
+  async function fetchCommunityExtensions(src, term = '', offset = 0) {
+    const isSearch = Boolean(term);
+    const apiUrl = isSearch
+      ? src.base + src.searchPath + encodeURIComponent(term) + src.spSuffix + '&offset=' + offset
+      : src.base + src.catPath + '?page=' + (Math.floor(offset/30) + 1);
+    const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(apiUrl);
     try {
-      const res  = await fetch(proxyUrl);
-      if (!res.ok) throw new Error(`Fetch failed (${res.status})`);
+      const res = await fetch(proxyUrl);
+      if (!res.ok) return [];
       const data = await res.json();
-
       if (isSearch) {
-        data.url = src.base;
-        return processSearchResults(data, src.name);
+        const topicMap = {};
+        (data.topics || []).forEach(t => topicMap[t.id] = t);
+        return (data.posts || []).map(post => {
+          const topic = topicMap[post.topic_id];
+          return topic
+            ? {
+                id: topic.id,
+                title: topic.title,
+                community: src.name,
+                topicUrl: src.base + '/t/' + topic.slug + '/' + topic.id,
+                postsCount: topic.posts_count,
+                replyCount: topic.reply_count,
+                createdAt: topic.created_at,
+                blurb: post.blurb,
+                hasAcceptedAnswer: topic.has_accepted_answer
+              }
+            : null;
+        }).filter(x => x);
       }
-
-      const topics = data.topic_list?.topics || [];
-      return topics.slice(0, INITIAL_LOAD_COUNT).map(topic => ({
-        id:                topic.id,
-        title:             topic.title,
-        community:         src.name,
-        topicUrl:          `${src.base}/t/${topic.slug}/${topic.id}`,
-        postsCount:        topic.posts_count,
-        replyCount:        topic.reply_count,
-        createdAt:         topic.created_at,
+      return (data.topic_list?.topics || []).map(topic => ({
+        id: topic.id,
+        title: topic.title,
+        community: src.name,
+        topicUrl: src.base + '/t/' + topic.slug + '/' + topic.id,
+        postsCount: topic.posts_count,
+        replyCount: topic.reply_count,
+        createdAt: topic.created_at,
         hasAcceptedAnswer: topic.has_accepted_answer
       }));
-    } catch (err) {
-      console.error(`Error fetching ${src.name}:`, err);
-      showToast(`${translations[currentLanguage].error} ${src.name}`);
+    } catch {
       return [];
     }
   }
 
-  // Carregamento inicial de extensões
+  // Inicialização
+  async function init() {
+    loadLanguage();
+    setupEventListeners();
+    const cached = loadCache();
+    if (cached && !searchInput.value.trim()) {
+      allExtensions = cached;
+      container.innerHTML = '';
+      appendExtensions(allExtensions);
+      updateTimeEl.textContent = new Date().toLocaleString(currentLanguage);
+      updateLoadMoreButton();
+    } else {
+      await loadInitialExtensions();
+    }
+  }
+
+  function setupEventListeners() {
+    loadMoreBtn.addEventListener('click', loadMoreExtensions);
+    searchBtn.addEventListener('click', performSearch);
+    searchInput.addEventListener('keypress', e => { if (e.key === 'Enter') performSearch(); });
+    languageSelect.addEventListener('change', changeLanguage);
+    communitySelect.addEventListener('change', changeCommunities);
+  }
+
+  // Carrega iniciais
   async function loadInitialExtensions() {
     if (isLoading) return;
     isLoading = true;
-    currentOffset = 0;
-    allExtensions = [];
-    displayedExtensions = [];
-    container.innerHTML = `<p>${translations[currentLanguage].loading}</p>`;
+    clearCache();
+    currentOffset = 0; allExtensions = []; displayedExtensions = [];
+    showToast(translations[currentLanguage].pleaseWait);
+    container.innerHTML = '<p>' + translations[currentLanguage].loading + '</p>';
     loadMoreBtn.disabled = true;
-    loadingSpinner.classList.remove("hidden");
-
-    try {
-      const actives = getActiveCommunities();
-      const lists   = await Promise.all(actives.map(src => fetchCommunityExtensions(src)));
-      allExtensions = lists.flat();
-      displayedExtensions = [...allExtensions];
-      updateTimeEl.textContent = new Date().toLocaleString(currentLanguage);
-      displayExtensions();
-    } finally {
-      isLoading = false;
-      loadMoreBtn.disabled = false;
-      loadingSpinner.classList.add("hidden");
-      updateLoadMoreButton();
-    }
+    loadingSpinner.classList.remove('hidden');
+    container.innerHTML = '';
+    const actives = getActiveCommunities();
+    const tasks = actives.map((src, i) =>
+      rateLimitedFetch(src, '', 0, i)
+        .then(list => list.filter(ext => TAG_REGEX.test(ext.title)))
+        .then(filtered => { allExtensions.push(...filtered); appendExtensions(filtered); })
+    );
+    await Promise.all(tasks);
+    displayedExtensions = [...allExtensions];
+    saveCache();
+    updateTimeEl.textContent = new Date().toLocaleString(currentLanguage);
+    isLoading = false; loadMoreBtn.disabled = false; loadingSpinner.classList.add('hidden'); updateLoadMoreButton();
   }
 
-  // “Carregar mais”
+  // Carrega mais
   async function loadMoreExtensions() {
     if (isLoading) return;
-    isLoading = true;
-    currentOffset += INITIAL_LOAD_COUNT;
-    loadMoreBtn.disabled = true;
-    loadingSpinner.classList.remove("hidden");
-
-    try {
-      const more = await Promise.all(
-        getActiveCommunities().map(src =>
-          fetchCommunityExtensions(src, currentSearchTerm, currentOffset)
-        )
-      );
-      const flat  = more.flat();
-      allExtensions       = allExtensions.concat(flat);
-      displayedExtensions = currentSearchTerm
-        ? [...allExtensions]
-        : [...displayedExtensions, ...flat];
-      displayExtensions();
-    } finally {
-      isLoading = false;
-      loadMoreBtn.disabled = false;
-      loadingSpinner.classList.add("hidden");
-      updateLoadMoreButton();
-    }
+    isLoading = true; currentOffset += INITIAL_LOAD_COUNT;
+    loadMoreBtn.disabled = true; loadingSpinner.classList.remove('hidden'); showToast(translations[currentLanguage].pleaseWait);
+    const actives = getActiveCommunities();
+    const tasks = actives.map((src, i) =>
+      rateLimitedFetch(src, currentSearchTerm, currentOffset, i)
+        .then(list => list.filter(ext => TAG_REGEX.test(ext.title)))
+        .then(filtered => { allExtensions.push(...filtered); appendExtensions(filtered); })
+    );
+    await Promise.all(tasks);
+    displayedExtensions = currentSearchTerm
+      ? [...allExtensions]
+      : [...displayedExtensions, ...allExtensions.slice(-tasks.length)];
+    saveCache();
+    isLoading = false; loadMoreBtn.disabled = false; loadingSpinner.classList.add('hidden'); updateLoadMoreButton();
   }
 
-  // Pesquisa customizada
+  // Pesquisa
   async function performSearch() {
-    if (isLoading) return;
-    currentSearchTerm    = searchInput.value.trim().toLowerCase();
-    currentOffset        = 0;
-    allExtensions        = [];
-    displayedExtensions  = [];
-
-    isLoading = true;
-    container.innerHTML = `<p>${translations[currentLanguage].loading}</p>`;
-    loadMoreBtn.disabled = true;
-    loadingSpinner.classList.remove("hidden");
-
-    try {
-      const lists = await Promise.all(
-        getActiveCommunities().map(src =>
-          fetchCommunityExtensions(src, currentSearchTerm)
-        )
-      );
-      allExtensions       = lists.flat();
-      displayedExtensions = [...allExtensions];
-      displayExtensions();
-    } finally {
-      isLoading = false;
-      loadMoreBtn.disabled = false;
-      loadingSpinner.classList.add("hidden");
-      updateLoadMoreButton();
-    }
-  }
-
-  // Renderiza os cards
-  function displayExtensions() {
-    container.innerHTML = "";
-
-    if (!displayedExtensions.length) {
-      container.innerHTML = `<p>${translations[currentLanguage].noResults}</p>`;
+    const term = searchInput.value.trim();
+    if (!term) {
+      const cached = loadCache();
+      if (cached) {
+        allExtensions = cached; container.innerHTML = ''; appendExtensions(allExtensions);
+        updateTimeEl.textContent = new Date().toLocaleString(currentLanguage); updateLoadMoreButton();
+      } else {
+        await loadInitialExtensions();
+      }
       return;
     }
-
-    const t = translations[currentLanguage];
-    displayedExtensions.forEach(ext => {
-      const div = document.createElement("div");
-      div.className = "card";
-      div.innerHTML = `
-        <div class="info">
-          <h2>${ext.title}</h2>
-          <div class="meta">
-            <span class="community">${t.community}: ${ext.community}</span>
-            <div class="stats">
-              <span>📅 ${new Date(ext.createdAt).toLocaleDateString(currentLanguage)}</span>
-              <span>💬 ${ext.postsCount} ${t.posts}</span>
-              <span>↩️ ${ext.replyCount} ${t.replies}</span>
-              ${ext.hasAcceptedAnswer?'<span class="solved">✅ Solved</span>':''}
-            </div>
-            ${ext.blurb?`<p class="blurb">${ext.blurb.slice(0,150)}${ext.blurb.length>150?'…':''}</p>`:''}
-          </div>
-        </div>
-        <div class="links">
-          <a href="${ext.topicUrl}" target="_blank" class="topic-link">${t.topic}</a>
-        </div>
-      `;
-      container.appendChild(div);
-    });
+    clearCache(); currentSearchTerm = term.toLowerCase(); currentOffset = 0;
+    allExtensions = []; displayedExtensions = []; isLoading = true;
+    showToast(translations[currentLanguage].searching);
+    container.innerHTML = '<p>' + translations[currentLanguage].loading + '</p>';
+    loadMoreBtn.disabled = true; loadingSpinner.classList.remove('hidden'); container.innerHTML = '';
+    const actives = getActiveCommunities();
+    const tasks = actives.map((src, i) =>
+      rateLimitedFetch(src, currentSearchTerm, 0, i)
+        .then(list => list.filter(ext => TAG_REGEX.test(ext.title)))
+    );
+    const results = await Promise.all(tasks);
+    const flat = results.flat();
+    if (!flat.length) {
+      showToast(translations[currentLanguage].noResultsToast);
+      isLoading = false; loadMoreBtn.disabled = false; loadingSpinner.classList.add('hidden'); updateLoadMoreButton();
+      return;
+    }
+    flat.forEach(ext => { allExtensions.push(ext); appendExtensions([ext]); });
+    displayedExtensions = [...allExtensions]; saveCache();
+    isLoading = false; loadMoreBtn.disabled = false; loadingSpinner.classList.add('hidden'); updateLoadMoreButton();
   }
 
+  // Atualiza botão
   function updateLoadMoreButton() {
-    // Mantém botão visível se múltiplos exatos
-    const canLoad = allExtensions.length % (getActiveCommunities().length * LOAD_MORE_COUNT) === 0;
-    loadMoreBtn.style.display = canLoad ? "block" : "none";
+    const can = (allExtensions.length % (getActiveCommunities().length * LOAD_MORE_COUNT) === 0);
+    loadMoreBtn.style.display = can ? 'block' : 'none';
   }
 
-  window.addEventListener("DOMContentLoaded", init);
+  window.addEventListener('DOMContentLoaded', init);
 })();
 
